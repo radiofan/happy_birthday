@@ -98,6 +98,13 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstanc
 	//Строка с нулевым символом в конце. макс 128 символов включая 0
 	//StringCchCopy(icon_struct.szTip, ARRAYSIZE(icon_struct.szTip), TEXT("Test application"));
 	lstrcpyn(icon_struct.szTip, TEXT("Test application"), sizeof(icon_struct.szTip)/sizeof(icon_struct.szTip[0]));
+	
+	
+	lstrcpyn(icon_struct.szInfoTitle, TEXT("Title"), sizeof(icon_struct.szInfoTitle)/sizeof(icon_struct.szInfoTitle[0]));
+	lstrcpyn(icon_struct.szInfo, TEXT("text"), sizeof(icon_struct.szInfo)/sizeof(icon_struct.szInfo[0]));
+
+	icon_struct.dwInfoFlags = NIIF_USER | NIIF_LARGE_ICON;
+	icon_struct.hBalloonIcon = (HICON) LoadImage(hInstance, MAKEINTRESOURCE(103), IMAGE_ICON, SM_CXSMICON, SM_CYSMICON, LR_DEFAULTCOLOR);
 
 	Shell_NotifyIcon(NIM_ADD, &icon_struct);
 	Shell_NotifyIcon(NIM_SETVERSION, &icon_struct);
@@ -113,5 +120,6 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstanc
 	Shell_NotifyIcon(NIM_DELETE, &icon_struct);
 	//очистка памяти
 	DestroyIcon(icon_struct.hIcon);
+	DestroyIcon(icon_struct.hBalloonIcon);
 	return 0;
 }
