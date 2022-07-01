@@ -6,30 +6,16 @@
 
 #define WM_SHELLNOTIFY (WM_APP + 1)
 
-NOTIFYICONDATA icon_struct;
-//f0ad928e-9908-497f-8f95-bc42c9e1805c
-const GUID appGUID = {0xf0ad928e, 0x9908, 0x497f, {0x8f, 0x95, 0xbc, 0x42, 0xc9, 0xe1, 0x80, 0x5c}};
+class App;
+
+App* application = nullptr;
+
+
 
 
 // Обработка сообщений
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
 	switch(message){
-
-		//// Проверка по таймеру
-		//case WM_TIMER:
-		//	bool check = FileExists(TEXT("P:\\"));
-		//	if(State != check){
-		//		if(State){
-		//			Icon.hIcon = LoadIcon(NULL, IDI_SHIELD);
-		//		}else{
-		//			Icon.hIcon = LoadIcon(NULL, IDI_WARNING);
-		//		}
-		//		Icon.uFlags = NIF_ICON;
-		//		Shell_NotifyIcon(NIM_MODIFY, &Icon);
-		//		State = check;
-		//	}
-		//	break;
-			
 		// Сообщение от значка
 		case WM_SHELLNOTIFY:
 			if(LOWORD(lParam) == WM_CONTEXTMENU){
@@ -49,20 +35,42 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
 	return 0;
 }
 
+class App{
+public:
+	//f0ad928e-9908-497f-8f95-bc42c9e1805c
+	const GUID appGUID = {0xf0ad928e, 0x9908, 0x497f, {0x8f, 0x95, 0xbc, 0x42, 0xc9, 0xe1, 0x80, 0x5c}};
+private:
+	NOTIFYICONDATA icon_struct;
+	WNDCLASSEX main_win_c;
+	HWND window;
+	HINSTANCE hInstance;
+
+public:
+	App(HINSTANCE hInstance) : hInstance(hInstance), main_win_c({0}), window(nullptr), icon_struct({0}){
+		window = create_window();
+	}
+
+private:
+	HWND create_window(){
+		//Регистрация класса окна
+		main_win_c.cbSize = sizeof(WNDCLASSEX);
+		main_win_c.hInstance = hInstance;
+		main_win_c.lpszClassName = TEXT("Main");
+		main_win_c.lpfnWndProc = WndProc;
+		RegisterClassEx(&main_win_c);
+
+		// Создание главного окна
+		return CreateWindowEx(0, TEXT("Main"), NULL, 0, 0, 0, 0, 0, NULL, NULL, hInstance, NULL);
+	}
+};
+
 
 // Главная функция
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nShowCmd){
-	//Регистрация класса окна
-	WNDCLASSEX main = {0};
-	main.cbSize = sizeof(WNDCLASSEX);
-	main.hInstance = hInstance;
-	main.lpszClassName = TEXT("Main");
-	main.lpfnWndProc = WndProc;
-	RegisterClassEx(&main);
 
-	// Создание главного окна
-	HWND window = CreateWindowEx(0, TEXT("Main"), NULL, 0, 0, 0, 0, 0, NULL, NULL, hInstance, NULL);
+	application = new App(hInstance);
 
+	/*
 	// Создание значка
 	icon_struct = {0};
 	icon_struct.cbSize = sizeof(NOTIFYICONDATA);
@@ -121,5 +129,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstanc
 	//очистка памяти
 	DestroyIcon(icon_struct.hIcon);
 	DestroyIcon(icon_struct.hBalloonIcon);
+	*/
+
 	return 0;
 }
