@@ -1,10 +1,13 @@
 #include <windows.h>
+#include <windowsx.h>
 //#include <strsafe.h>
 //#include <commctrl.h>
 #include <string>
 #include <tchar.h>
 
 #define WM_SHELLNOTIFY (WM_APP + 1)
+#define CM_EXIT 15
+#define CM_EXEC 14
 
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
 
@@ -17,11 +20,13 @@ private:
 	WNDCLASSEX main_win_c;
 	HWND window;
 	HINSTANCE hInstance;
+	HMENU context_menu;
 
 public:
-	App(HINSTANCE hInstance) : hInstance(hInstance), main_win_c({0}), window(nullptr), icon_struct({0}){
+	App(HINSTANCE hInstance) : hInstance(hInstance), main_win_c({0}), window(nullptr), icon_struct({0}), context_menu(nullptr){
 		window = create_window();
 		this->init_icon_struct();
+		this->init_context_menu();
 	}
 
 	void hide_icon(){
@@ -42,10 +47,38 @@ public:
 		return 0;
 	}
 
+	bool show_context_menu(INT16 x, INT16 y){
+ 
+		SetForegroundWindow(window);
+		bool ret = TrackPopupMenu(
+			context_menu,
+			//TPM_LEFTBUTTON | TPM_TOPALIGN | TPM_LEFTALIGN, 
+			TPM_LEFTBUTTON, 
+			x, 
+			y,
+			0,
+			window,
+			NULL
+		);
+		return ret;
+	}
+
+	void context_menu_click(INT16 menu_item_ind){
+		switch(menu_item_ind){
+			case CM_EXIT:
+				DestroyWindow(window);
+				break;
+			case CM_EXEC:
+				ModifyMenu(context_menu, CM_EXEC, MF_BYCOMMAND | MF_UNCHECKED | MFT_STRING, NULL, TEXT("Действие"));
+				break;
+		}
+	}
+
 	~App(){
 		//очистка памяти
 		DestroyIcon(icon_struct.hIcon);
 		DestroyIcon(icon_struct.hBalloonIcon);
+		DestroyMenu(context_menu);
 	}
 
 private:
@@ -104,6 +137,12 @@ private:
 		icon_struct.dwInfoFlags = NIIF_USER | NIIF_LARGE_ICON;
 		icon_struct.hBalloonIcon = (HICON) LoadImage(hInstance, MAKEINTRESOURCE(103), IMAGE_ICON, SM_CXSMICON, SM_CYSMICON, LR_DEFAULTCOLOR);
 	}
+
+	void init_context_menu(){
+		context_menu = CreatePopupMenu();
+		AppendMenu(context_menu, MFT_STRING | MF_CHECKED, CM_EXEC, TEXT("Действие"));
+		AppendMenu(context_menu, MFT_STRING, CM_EXIT, TEXT("&Выход"));
+	}
 };
 
 App* application = nullptr;
@@ -112,16 +151,19 @@ App* application = nullptr;
 // Обработка сообщений
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam){
 	switch(message){
-		// Сообщение от значка
+		//Сообщение от значка
 		case WM_SHELLNOTIFY:
 			if(LOWORD(lParam) == WM_CONTEXTMENU){
-				if(MessageBox(NULL, TEXT("Завершить работу?"), TEXT("Tray"), MB_YESNO) == IDYES){
-					DestroyWindow(window);
-				}
+				application->show_context_menu(GET_X_LPARAM(wParam), GET_Y_LPARAM(wParam));
 			}
 			break;
-		
-		// Стандартная обработка сообщений
+
+		//событие выбора пункта меню
+		case WM_COMMAND:
+			application->context_menu_click(LOWORD(wParam));
+			break;
+			
+		//выход из программы
 		case WM_DESTROY:
 			application->hide_icon();
 			PostQuitMessage(0);
