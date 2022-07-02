@@ -4,6 +4,7 @@
 #include <shlwapi.h>
 //#include <strsafe.h>
 //#include <commctrl.h>
+#include <vector>
 #include <string>
 #include <tchar.h>
 
@@ -104,6 +105,8 @@ public:
 			);
 			return 0;
 		}
+
+		read_csv_file();
 
 		Shell_NotifyIcon(NIM_ADD, &icon_struct);
 		Shell_NotifyIcon(NIM_SETVERSION, &icon_struct);
@@ -291,6 +294,53 @@ private:
 		context_menu = CreatePopupMenu();
 		AppendMenu(context_menu, MFT_STRING | MF_CHECKED, CM_EXEC, TEXT("Действие"));
 		AppendMenu(context_menu, MFT_STRING, CM_EXIT, TEXT("&Выход"));
+	}
+
+	bool read_csv_file(){
+		HKEY hKey = nullptr;
+
+		if(RegOpenKeyEx(
+			HKEY_CURRENT_USER,
+			TEXT("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders"),
+			0,
+			KEY_QUERY_VALUE,
+			&hKey
+		) != ERROR_SUCCESS){
+			return false;
+		}
+		DWORD type, data_size;
+		if(RegQueryValueEx(hKey, TEXT("Personal"), NULL, &type, NULL, &data_size) != ERROR_SUCCESS){
+			RegCloseKey(hKey);
+			return false;
+		}
+
+		if(type != REG_EXPAND_SZ && type != REG_SZ){
+			RegCloseKey(hKey);
+			return false;
+		}
+		//LPTSTR path = (LPTSTR) malloc(data_size + sizeof(TEXT("\\Happy Birthday\\birthdays.csv")));
+		LPTSTR path = (LPTSTR)HeapAlloc(GetProcessHeap(), 0, data_size + sizeof(TEXT("\\Happy Birthday\\birthdays.csv")));
+
+		if(RegQueryValueEx(hKey, TEXT("Personal"), NULL, &type, (LPBYTE)path, &data_size) != ERROR_SUCCESS){
+			RegCloseKey(hKey);
+			return false;
+		}
+		
+		RegCloseKey(hKey);
+
+
+		lstrcat(path, TEXT("\\Happy Birthday\\birthdays.csv"));
+
+		ExpandEnvironmentStrings//todo
+
+		HANDLE ret = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+		//std::wstring a(std::wstring(path) + L"\\Happy Birthday\\birthdays.csv");
+		//std::ifstream file();
+		
+		HeapFree(GetProcessHeap(), 0, path);
+
+		return true;
 	}
 };
 
