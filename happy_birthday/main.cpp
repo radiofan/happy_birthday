@@ -106,7 +106,7 @@ public:
 			return 0;
 		}
 
-		read_csv_file();
+		open_birthdays_file();
 
 		Shell_NotifyIcon(NIM_ADD, &icon_struct);
 		Shell_NotifyIcon(NIM_SETVERSION, &icon_struct);
@@ -296,9 +296,15 @@ private:
 		AppendMenu(context_menu, MFT_STRING, CM_EXIT, TEXT("&¬ыход"));
 	}
 
-	bool read_csv_file(){
+	/**
+	* @return NULL или то что возвращает CreateFile
+	* INVALID_HANDLE_VALUE, ERROR_ALREADY_EXISTS 
+	*/
+	HANDLE open_birthdays_file(){
 		HKEY hKey = nullptr;
+		HANDLE h_process_heap = GetProcessHeap();
 
+		//получим путь к папке мои документы дл€ текущего юзера из реестра
 		if(RegOpenKeyEx(
 			HKEY_CURRENT_USER,
 			TEXT("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders"),
@@ -306,41 +312,61 @@ private:
 			KEY_QUERY_VALUE,
 			&hKey
 		) != ERROR_SUCCESS){
-			return false;
+			return NULL;
 		}
+
+		//получим размер строки в реестре
 		DWORD type, data_size;
 		if(RegQueryValueEx(hKey, TEXT("Personal"), NULL, &type, NULL, &data_size) != ERROR_SUCCESS){
 			RegCloseKey(hKey);
-			return false;
+			return NULL;
 		}
 
-		if(type != REG_EXPAND_SZ && type != REG_SZ){
+		if(type != REG_EXPAND_SZ && type != REG_SZ || data_size == 0){
 			RegCloseKey(hKey);
-			return false;
+			return NULL;
 		}
-		//LPTSTR path = (LPTSTR) malloc(data_size + sizeof(TEXT("\\Happy Birthday\\birthdays.csv")));
-		LPTSTR path = (LPTSTR)HeapAlloc(GetProcessHeap(), 0, data_size + sizeof(TEXT("\\Happy Birthday\\birthdays.csv")));
+
+		LPTSTR path = (LPTSTR)HeapAlloc(h_process_heap, 0, data_size + sizeof(TEXT("\\Happy Birthday\\birthdays.csv")));
+		if(path == NULL){
+			RegCloseKey(hKey);
+			return NULL;
+		}
 
 		if(RegQueryValueEx(hKey, TEXT("Personal"), NULL, &type, (LPBYTE)path, &data_size) != ERROR_SUCCESS){
+			HeapFree(h_process_heap, 0, path);
 			RegCloseKey(hKey);
-			return false;
+			return NULL;
 		}
 		
 		RegCloseKey(hKey);
 
 
-		lstrcat(path, TEXT("\\Happy Birthday\\birthdays.csv"));
+		if(lstrcat(path, TEXT("\\Happy Birthday\\birthdays.csv")) == NULL){
+			HeapFree(h_process_heap, 0, path);
+			return NULL;
+		}
 
-		ExpandEnvironmentStrings//todo
+		data_size = ExpandEnvironmentStrings(path, NULL, 0);
 
-		HANDLE ret = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		LPTSTR full_path = (LPTSTR)HeapAlloc(h_process_heap, 0, data_size * sizeof(TCHAR));
+		if(full_path == NULL){
+			HeapFree(h_process_heap, 0, path);
+			return NULL;
+		}
 
-		//std::wstring a(std::wstring(path) + L"\\Happy Birthday\\birthdays.csv");
-		//std::ifstream file();
+		data_size = ExpandEnvironmentStrings(path, full_path, data_size);
+		if(data_size == 0){
+			HeapFree(h_process_heap, 0, path);
+			HeapFree(h_process_heap, 0, full_path);
+			return NULL;
+		}
+		HANDLE ret = CreateFile(full_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		
-		HeapFree(GetProcessHeap(), 0, path);
+		HeapFree(h_process_heap, 0, path);
+		HeapFree(h_process_heap, 0, full_path);
 
-		return true;
+		return HeapFree;
 	}
 };
 
