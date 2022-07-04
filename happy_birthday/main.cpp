@@ -106,7 +106,13 @@ public:
 			return 0;
 		}
 
-		open_birthdays_file();
+		HANDLE h_birthdays_file = open_birthdays_file();
+		if(h_birthdays_file != NULL && h_birthdays_file != INVALID_HANDLE_VALUE){
+			//todo
+
+
+			CloseHandle(h_birthdays_file);
+		}
 
 		Shell_NotifyIcon(NIM_ADD, &icon_struct);
 		Shell_NotifyIcon(NIM_SETVERSION, &icon_struct);
@@ -297,10 +303,19 @@ private:
 	}
 
 	/**
+	* открывает файл по стандартному пути (%USERPROFILE%\Documents\Happy Birthday\birthdays.csv)
+	* или по переданному пути
+	* @param user_path - указатель на строку путь к файлу
 	* @return NULL или то что возвращает CreateFile
-	* INVALID_HANDLE_VALUE, ERROR_ALREADY_EXISTS 
+	* INVALID_HANDLE_VALUE
 	*/
-	HANDLE open_birthdays_file(){
+	HANDLE open_birthdays_file(LPCTSTR user_path = NULL){
+
+		if(user_path){
+			return CreateFile(user_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		}
+
+
 		HKEY hKey = nullptr;
 		HANDLE h_process_heap = GetProcessHeap();
 
@@ -333,6 +348,7 @@ private:
 			return NULL;
 		}
 
+		//вытащим строку из реестра
 		if(RegQueryValueEx(hKey, TEXT("Personal"), NULL, &type, (LPBYTE)path, &data_size) != ERROR_SUCCESS){
 			HeapFree(h_process_heap, 0, path);
 			RegCloseKey(hKey);
@@ -341,13 +357,18 @@ private:
 		
 		RegCloseKey(hKey);
 
-
+		//добавим свой путь
 		if(lstrcat(path, TEXT("\\Happy Birthday\\birthdays.csv")) == NULL){
 			HeapFree(h_process_heap, 0, path);
 			return NULL;
 		}
 
+		//заменим системные переменные
 		data_size = ExpandEnvironmentStrings(path, NULL, 0);
+		if(data_size == 0){
+			HeapFree(h_process_heap, 0, path);
+			return NULL;
+		}
 
 		LPTSTR full_path = (LPTSTR)HeapAlloc(h_process_heap, 0, data_size * sizeof(TCHAR));
 		if(full_path == NULL){
@@ -361,12 +382,14 @@ private:
 			HeapFree(h_process_heap, 0, full_path);
 			return NULL;
 		}
-		HANDLE ret = CreateFile(full_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+		//откроем файл на чтение
+		HANDLE ret = CreateFile(full_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 		
 		HeapFree(h_process_heap, 0, path);
 		HeapFree(h_process_heap, 0, full_path);
 
-		return HeapFree;
+		return ret;
 	}
 };
 
