@@ -7,6 +7,14 @@
 #include <vector>
 #include <string>
 #include <tchar.h>
+#ifdef _UNICODE
+	typedef std::wstring String;
+	#define str_to_tstr(X) String(X.begin(), X.end())
+
+#else
+	typedef std::string String;
+	#define str_to_tstr(X) X
+#endif
 
 #define WM_SHELLNOTIFY (WM_APP + 1)
 #define CM_EXIT 15
@@ -15,7 +23,258 @@
 #define STR_(X) #X
 #define STR(X) STR_(X)
 
+#define nano100SecInWeek (__int64)10000000*60*60*24*7
+#define nano100SecInDay  (__int64)10000000*60*60*24
+#define nano100SecInHour (__int64)10000000*60*60
+#define nano100SecInMin  (__int64)10000000*60
+#define nano100SecInSec  (__int64)10000000
+
+#define DELIMITER_CHAR '\t'
+
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
+
+
+class BirthdayList{
+private:
+	std::vector<String> labels;
+	std::vector<SYSTEMTIME> dates;
+public:
+	BirthdayList(){
+
+	}
+
+	UINT32 size() const{
+		return dates.size();
+	}
+
+	/**
+	* ƒобавл€ет день рождени€,
+	* 
+	*/
+	bool add_birthday(SYSTEMTIME date, const String &label){
+
+		//обнулим часы, они нам не нужны
+		date.wHour = 0;
+		date.wMinute = 0;
+		date.wMilliseconds = 0;
+
+		UINT32 size = dates.size();
+		UINT32 insert_pos = 0;
+
+		for(; insert_pos<size; insert_pos++){
+			if(date.wMonth <= dates[insert_pos].wMonth && date.wDay <= dates[insert_pos].wDay)
+				break;
+		}
+
+		dates.insert(dates.begin(), date);
+		labels.insert(labels.begin(), label);
+
+		return true;
+	}
+
+	~BirthdayList(){
+		/*
+		UINT32 size = labels.size();
+		HANDLE h_process_heap = GetProcessHeap();
+		for(UINT32 i=0; i<size; i++){
+			HeapFree(h_process_heap, 0, (LPVOID)labels[i]);
+		}
+		*/
+	}
+	
+};
+
+class BirthdaysClass{
+private:
+	BirthdayList birthday_list[12];
+public:
+	BirthdaysClass(){
+
+	}
+
+	/**
+	* ƒобавл€ет день рождени€, строка label будет очищена с помощью HeapFree если день будет добавлен
+	* 
+	*/
+	bool add_birthday(SYSTEMTIME date, const String& label){
+		return birthday_list[date.wMonth-1].add_birthday(date, label);
+	}
+
+
+	int parse_data_from_file(HANDLE input){
+
+
+		//дерьмо, надо что то с этим делать
+
+		constexpr DWORD buffer_len = 10;
+		CHAR buffer[buffer_len];
+		DWORD data_len;
+
+		//DWORD string_start=0, string_end=0;
+		//bool is_quot = false;
+		char tmp;
+		std::string string_buffer = "", label;
+		SYSTEMTIME date = {0};
+		DWORD end_char_pos, noend_char_pos, date_finded=0;
+		bool find_date = false;
+
+
+		while(ReadFile(input, buffer, buffer_len-1, &data_len, NULL) && data_len != 0){
+			buffer[data_len] = '\0';
+			string_buffer += buffer;
+		PARSE_DATA_STR:
+			tmp = get_end_char_pos(string_buffer, end_char_pos);
+			
+			if(end_char_pos == string_buffer.size()){
+				//конечный символ не найден, продолжаем получать данные из файла
+				continue;
+			}
+			if(find_date){
+				//обработка даты
+				if(tmp == '\r' || tmp == '\n'){
+					//найден конец даты
+					find_date = false;
+					label = "";
+					if(this->str_to_systemtime(string_buffer.substr(0, end_char_pos), date)){
+						this->add_birthday(date, str_to_tstr(label));
+						date_finded++;
+					}
+					goto CLEAR_BUFFER_TO_FIRST_NOEND_CHAR;
+				}else{
+					//перевод строки не был найден, был найден другой конечный символ
+					//грохаем все что находитс€ до следующего неконечного
+					goto CLEAR_BUFFER_TO_FIRST_NOEND_CHAR;
+				}
+			}else{
+				//обработка бирки
+				if(tmp == DELIMITER_CHAR){
+					//найден конец бирки
+					label = string_buffer.substr(0, end_char_pos);
+					find_date = true;
+					string_buffer = string_buffer.substr(end_char_pos+1);
+					goto PARSE_DATA_STR;
+				}else{
+					//конец бирки не был найден
+					//удал€ем текущую строку
+					//и идем парсить следущее данные
+					goto CLEAR_BUFFER_TO_FIRST_NOEND_CHAR;
+				}
+			}
+
+		//производим очистку буффера до первого неконечного символа
+		CLEAR_BUFFER_TO_FIRST_NOEND_CHAR:
+			noend_char_pos = get_not_end_char_pos(string_buffer, end_char_pos+1);
+			if(noend_char_pos == string_buffer.size()){
+				string_buffer = "";
+				continue;
+			}
+			string_buffer = string_buffer.substr(noend_char_pos);
+			goto PARSE_DATA_STR;
+
+		}
+
+		if(find_date){
+			if(this->str_to_systemtime(string_buffer, date)){
+				this->add_birthday(date, str_to_tstr(label));
+			}
+		}
+
+		return date_finded;
+	}
+
+	~BirthdaysClass(){
+
+	}
+private:
+	/**
+	* @param str - строка в которой ищутс€ символы конца
+	* @param end_char_pos - сюда поместитс€ индекс конечного символа (если такой не будет найден будет иметь значение размера строки)
+	* @returns \0, \r, \n, DELIMITER_CHAR
+	* @see DELIMITER_CHAR
+	*/
+	char get_end_char_pos(std::string& str, DWORD& end_char_pos){
+		DWORD len = str.size();
+		for(DWORD i=0; i<len; i++){
+			switch(str[i]){
+				case DELIMITER_CHAR:
+				case '\r':
+				case '\n':
+				case '\0':
+					end_char_pos = i;
+					return str[i];
+			}
+		}
+		end_char_pos = len;
+		return '\0';
+	}
+
+	/**
+	* @param str - строка в которой ищутс€ символы конца
+	* @param start_pos - позици€ символа с которого начинаетс€ поиск неконечного символа
+	* @returns позици€ первого неконечного символа или длину строки если смвол не найден
+	*/
+	DWORD get_not_end_char_pos(std::string& str, DWORD start_pos){
+		DWORD len = str.size();
+		for(; start_pos<len; start_pos++){
+			switch(str[start_pos]){
+				case DELIMITER_CHAR:
+				case '\r':
+				case '\n':
+				case '\0':
+					continue;
+				default:
+					return start_pos;
+			}
+		}
+		return len;
+	}
+
+	/**
+	* @param str - строка с датой формата yyyy.mm.dd или dd.mm.yyyy, точка - любой нецифровой символ
+	*/
+	bool str_to_systemtime(std::string str, SYSTEMTIME& date){
+		if(str.size() != 10)
+			return false;
+
+		const char* str_p = str.c_str();
+		int year ,month, day;
+
+		if(isdigit(str[2])){
+			//yyyy.mm.dd
+			str[4] = '\0';
+			str[7] = '\0';
+			if(!StrToIntExA(str_p, STIF_DEFAULT, &year)){
+				return false;
+			}
+			if(!StrToIntExA(str_p+5, STIF_DEFAULT, &month)){
+				return false;
+			}
+			if(!StrToIntExA(str_p+8, STIF_DEFAULT, &day)){
+				return false;
+			}
+		}else{
+			//dd.mm.yyyy
+			str[2] = '\0';
+			str[5] = '\0';
+			if(!StrToIntExA(str_p, STIF_DEFAULT, &day)){
+				return false;
+			}
+			if(!StrToIntExA(str_p+3, STIF_DEFAULT, &month)){
+				return false;
+			}
+			if(!StrToIntExA(str_p+6, STIF_DEFAULT, &year)){
+				return false;
+			}
+		}
+		
+		date = {0};
+
+		date.wYear = year;
+		date.wMonth = month;
+		date.wDay = day;
+	}
+};
+
 
 class App{
 public:
@@ -27,6 +286,9 @@ private:
 	HWND window;
 	HINSTANCE hInstance;
 	HMENU context_menu;
+
+
+	BirthdaysClass birthdays_list;
 
 
 	//параметры задаютс€ параметрами запуска
@@ -108,8 +370,12 @@ public:
 
 		HANDLE h_birthdays_file = open_birthdays_file();
 		if(h_birthdays_file != NULL && h_birthdays_file != INVALID_HANDLE_VALUE){
-			//todo
-
+			//FILETIME last_write_time = {0};
+			//GetFileTime(h_birthdays_file, NULL, NULL, &last_write_time);
+			//todo сравнение с последней датой изменени€ при последнем парсинге
+			//есть ли смысл сохран€ть кэш если его все равно парсить нужно?
+			birthdays_list.parse_data_from_file(h_birthdays_file);
+			
 
 			CloseHandle(h_birthdays_file);
 		}
