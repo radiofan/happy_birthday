@@ -106,7 +106,7 @@ public:
 
 		//дерьмо, надо что то с этим делать
 
-		constexpr DWORD buffer_len = 10;
+		constexpr DWORD buffer_len = 1024;
 		CHAR buffer[buffer_len];
 		DWORD data_len;
 
@@ -122,6 +122,7 @@ public:
 		while(ReadFile(input, buffer, buffer_len-1, &data_len, NULL) && data_len != 0){
 			buffer[data_len] = '\0';
 			string_buffer += buffer;
+
 		PARSE_DATA_STR:
 			tmp = get_end_char_pos(string_buffer, end_char_pos);
 			
@@ -129,46 +130,29 @@ public:
 				//конечный символ не найден, продолжаем получать данные из файла
 				continue;
 			}
-			if(find_date){
-				//обработка даты
-				if(tmp == '\r' || tmp == '\n'){
-					//найден конец даты
-					find_date = false;
-					label = "";
-					if(this->str_to_systemtime(string_buffer.substr(0, end_char_pos), date)){
-						this->add_birthday(date, str_to_tstr(label));
-						date_finded++;
-					}
-					goto CLEAR_BUFFER_TO_FIRST_NOEND_CHAR;
-				}else{
-					//перевод строки не был найден, был найден другой конечный символ
-					//грохаем все что находится до следующего неконечного
-					goto CLEAR_BUFFER_TO_FIRST_NOEND_CHAR;
+			if(find_date && (tmp == '\r' || tmp == '\n')){
+				//найден конец даты
+				find_date = false;
+				label = "";
+				if(this->str_to_systemtime(string_buffer.substr(0, end_char_pos), date)){
+					this->add_birthday(date, str_to_tstr(label));
+					date_finded++;
 				}
+				string_buffer = string_buffer.substr(end_char_pos+1);
+			}else if(!find_date && tmp == DELIMITER_CHAR){
+				//найден конец бирки
+				label = string_buffer.substr(0, end_char_pos);
+				find_date = true;
+				string_buffer = string_buffer.substr(end_char_pos+1);
 			}else{
-				//обработка бирки
-				if(tmp == DELIMITER_CHAR){
-					//найден конец бирки
-					label = string_buffer.substr(0, end_char_pos);
-					find_date = true;
-					string_buffer = string_buffer.substr(end_char_pos+1);
-					goto PARSE_DATA_STR;
-				}else{
-					//конец бирки не был найден
-					//удаляем текущую строку
-					//и идем парсить следущее данные
-					goto CLEAR_BUFFER_TO_FIRST_NOEND_CHAR;
+				//был найден мусор - чистим его
+				noend_char_pos = get_not_end_char_pos(string_buffer, end_char_pos+1);
+				if(noend_char_pos == string_buffer.size()){
+					string_buffer = "";
+					continue;
 				}
+				string_buffer = string_buffer.substr(noend_char_pos);
 			}
-
-		//производим очистку буффера до первого неконечного символа
-		CLEAR_BUFFER_TO_FIRST_NOEND_CHAR:
-			noend_char_pos = get_not_end_char_pos(string_buffer, end_char_pos+1);
-			if(noend_char_pos == string_buffer.size()){
-				string_buffer = "";
-				continue;
-			}
-			string_buffer = string_buffer.substr(noend_char_pos);
 			goto PARSE_DATA_STR;
 
 		}
