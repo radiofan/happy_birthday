@@ -1,263 +1,6 @@
-#include <windows.h>
-#include <windowsx.h>
-#pragma comment(lib, "Shlwapi.lib")
-#include <shlwapi.h>
-//#include <strsafe.h>
-//#include <commctrl.h>
-#include <vector>
-#include <string>
-#include <tchar.h>
-#ifdef _UNICODE
-	typedef std::wstring String;
-	#define str_to_tstr(X) String(X.begin(), X.end())
-
-#else
-	typedef std::string String;
-	#define str_to_tstr(X) X
-#endif
-
-#define WM_SHELLNOTIFY (WM_APP + 1)
-#define CM_EXIT 15
-#define CM_EXEC 14
-#define DEFAULT_CLOSE_AFTER_SEC 5
-#define STR_(X) #X
-#define STR(X) STR_(X)
-
-#define nano100SecInWeek (__int64)10000000*60*60*24*7
-#define nano100SecInDay  (__int64)10000000*60*60*24
-#define nano100SecInHour (__int64)10000000*60*60
-#define nano100SecInMin  (__int64)10000000*60
-#define nano100SecInSec  (__int64)10000000
-
-#define DELIMITER_CHAR '\t'
+#include "stdafx.h"
 
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
-
-
-class BirthdayList{
-private:
-	std::vector<String> labels;
-	std::vector<SYSTEMTIME> dates;
-public:
-	BirthdayList(){
-
-	}
-
-	UINT32 size() const{
-		return dates.size();
-	}
-
-	/**
-	* Добавляет день рождения,
-	* 
-	*/
-	bool add_birthday(SYSTEMTIME date, const String &label){
-
-		//обнулим часы, они нам не нужны
-		date.wHour = 0;
-		date.wMinute = 0;
-		date.wMilliseconds = 0;
-
-		UINT32 size = dates.size();
-		UINT32 insert_pos = 0;
-
-		for(; insert_pos<size; insert_pos++){
-			if(date.wMonth <= dates[insert_pos].wMonth && date.wDay <= dates[insert_pos].wDay)
-				break;
-		}
-
-		dates.insert(dates.begin(), date);
-		labels.insert(labels.begin(), label);
-
-		return true;
-	}
-
-	~BirthdayList(){
-		/*
-		UINT32 size = labels.size();
-		HANDLE h_process_heap = GetProcessHeap();
-		for(UINT32 i=0; i<size; i++){
-			HeapFree(h_process_heap, 0, (LPVOID)labels[i]);
-		}
-		*/
-	}
-	
-};
-
-class BirthdaysClass{
-private:
-	BirthdayList birthday_list[12];
-public:
-	BirthdaysClass(){
-
-	}
-
-	/**
-	* Добавляет день рождения, строка label будет очищена с помощью HeapFree если день будет добавлен
-	* 
-	*/
-	bool add_birthday(SYSTEMTIME date, const String& label){
-		return birthday_list[date.wMonth-1].add_birthday(date, label);
-	}
-
-
-	int parse_data_from_file(HANDLE input){
-
-
-		//дерьмо, надо что то с этим делать
-
-		constexpr DWORD buffer_len = 1024;
-		CHAR buffer[buffer_len];
-		DWORD data_len;
-
-		//DWORD string_start=0, string_end=0;
-		//bool is_quot = false;
-		char tmp;
-		std::string string_buffer = "", label;
-		SYSTEMTIME date = {0};
-		DWORD end_char_pos, noend_char_pos, date_finded=0;
-		bool find_date = false;
-
-
-		while(ReadFile(input, buffer, buffer_len-1, &data_len, NULL) && data_len != 0){
-			buffer[data_len] = '\0';
-			string_buffer += buffer;
-
-		PARSE_DATA_STR:
-			tmp = get_end_char_pos(string_buffer, end_char_pos);
-			
-			if(end_char_pos == string_buffer.size()){
-				//конечный символ не найден, продолжаем получать данные из файла
-				continue;
-			}
-			if(find_date && (tmp == '\r' || tmp == '\n')){
-				//найден конец даты
-				find_date = false;
-				label = "";
-				if(this->str_to_systemtime(string_buffer.substr(0, end_char_pos), date)){
-					this->add_birthday(date, str_to_tstr(label));
-					date_finded++;
-				}
-				string_buffer = string_buffer.substr(end_char_pos+1);
-			}else if(!find_date && tmp == DELIMITER_CHAR){
-				//найден конец бирки
-				label = string_buffer.substr(0, end_char_pos);
-				find_date = true;
-				string_buffer = string_buffer.substr(end_char_pos+1);
-			}else{
-				//был найден мусор - чистим его
-				noend_char_pos = get_not_end_char_pos(string_buffer, end_char_pos+1);
-				if(noend_char_pos == string_buffer.size()){
-					string_buffer = "";
-					continue;
-				}
-				string_buffer = string_buffer.substr(noend_char_pos);
-			}
-			goto PARSE_DATA_STR;
-
-		}
-
-		if(find_date){
-			if(this->str_to_systemtime(string_buffer, date)){
-				this->add_birthday(date, str_to_tstr(label));
-			}
-		}
-
-		return date_finded;
-	}
-
-	~BirthdaysClass(){
-
-	}
-private:
-	/**
-	* @param str - строка в которой ищутся символы конца
-	* @param end_char_pos - сюда поместится индекс конечного символа (если такой не будет найден будет иметь значение размера строки)
-	* @returns \0, \r, \n, DELIMITER_CHAR
-	* @see DELIMITER_CHAR
-	*/
-	char get_end_char_pos(std::string& str, DWORD& end_char_pos){
-		DWORD len = str.size();
-		for(DWORD i=0; i<len; i++){
-			switch(str[i]){
-				case DELIMITER_CHAR:
-				case '\r':
-				case '\n':
-				case '\0':
-					end_char_pos = i;
-					return str[i];
-			}
-		}
-		end_char_pos = len;
-		return '\0';
-	}
-
-	/**
-	* @param str - строка в которой ищутся символы конца
-	* @param start_pos - позиция символа с которого начинается поиск неконечного символа
-	* @returns позиция первого неконечного символа или длину строки если смвол не найден
-	*/
-	DWORD get_not_end_char_pos(std::string& str, DWORD start_pos){
-		DWORD len = str.size();
-		for(; start_pos<len; start_pos++){
-			switch(str[start_pos]){
-				case DELIMITER_CHAR:
-				case '\r':
-				case '\n':
-				case '\0':
-					continue;
-				default:
-					return start_pos;
-			}
-		}
-		return len;
-	}
-
-	/**
-	* @param str - строка с датой формата yyyy.mm.dd или dd.mm.yyyy, точка - любой нецифровой символ
-	*/
-	bool str_to_systemtime(std::string str, SYSTEMTIME& date){
-		if(str.size() != 10)
-			return false;
-
-		const char* str_p = str.c_str();
-		int year ,month, day;
-
-		if(isdigit(str[2])){
-			//yyyy.mm.dd
-			str[4] = '\0';
-			str[7] = '\0';
-			if(!StrToIntExA(str_p, STIF_DEFAULT, &year)){
-				return false;
-			}
-			if(!StrToIntExA(str_p+5, STIF_DEFAULT, &month)){
-				return false;
-			}
-			if(!StrToIntExA(str_p+8, STIF_DEFAULT, &day)){
-				return false;
-			}
-		}else{
-			//dd.mm.yyyy
-			str[2] = '\0';
-			str[5] = '\0';
-			if(!StrToIntExA(str_p, STIF_DEFAULT, &day)){
-				return false;
-			}
-			if(!StrToIntExA(str_p+3, STIF_DEFAULT, &month)){
-				return false;
-			}
-			if(!StrToIntExA(str_p+6, STIF_DEFAULT, &year)){
-				return false;
-			}
-		}
-		
-		date = {0};
-
-		date.wYear = year;
-		date.wMonth = month;
-		date.wDay = day;
-	}
-};
 
 
 class App{
@@ -270,9 +13,14 @@ private:
 	HWND window;
 	HINSTANCE hInstance;
 	HMENU context_menu;
+	SYSTEMTIME current_time;
 
 
 	BirthdaysClass birthdays_list;
+	/**
+	* 
+	*/
+	UINT8 birthday_type_print;
 
 
 	//параметры задаются параметрами запуска
@@ -304,6 +52,9 @@ public:
 		window(nullptr),
 		hInstance(hInstance),
 		context_menu(nullptr),
+		current_time({0}),
+
+		birthday_type_print(0),
 
 		is_help(false),
 		close_after_sec(-1)
@@ -311,6 +62,7 @@ public:
 		args_parse_result = this->parse_comand_args(comand_args);
 		if(!args_parse_result || is_help)
 			return;
+		GetLocalTime(&current_time);
 		window = create_window();
 		this->init_icon_struct();
 		this->init_context_menu();
@@ -359,9 +111,16 @@ public:
 			//todo сравнение с последней датой изменения при последнем парсинге
 			//есть ли смысл сохранять кэш если его все равно парсить нужно?
 			birthdays_list.parse_data_from_file(h_birthdays_file);
-			
 
 			CloseHandle(h_birthdays_file);
+		}
+
+		if(birthdays_list.get_count_birthdays(current_time.wMonth)){
+			SetTimer(window, BALLON_TYPES_INTERVAL_TIMER, BALLON_TYPES_INTERVAL_SEC*1000, NULL);
+		}else{
+			if(close_after_sec >= 0){
+				SetTimer(window, CLOSE_TIMER, close_after_sec*1000, NULL);
+			}
 		}
 
 		Shell_NotifyIcon(NIM_ADD, &icon_struct);
@@ -409,6 +168,16 @@ public:
 				ModifyMenu(context_menu, CM_EXEC, MF_BYCOMMAND | MF_UNCHECKED | MFT_STRING, NULL, TEXT("Действие"));
 				break;
 		}
+	}
+
+	void show_birthdays_ballons(){
+		//сегодняшние день рождения
+		if(birthday_type_print == 1){
+			birthdays_list.get_birthdays(current_time.wMonth, current_time.wDay);
+
+		}
+
+		KillTimer(window, BALLON_TYPES_INTERVAL_TIMER);
 	}
 
 	/**
@@ -530,6 +299,7 @@ private:
 		icon_struct.hIcon = (HICON) LoadImage(hInstance, MAKEINTRESOURCE(103), IMAGE_ICON, SM_CXICON, SM_CYICON, LR_DEFAULTCOLOR);
 		//icon_struct.hIcon = LoadIcon(NULL, IDI_SHIELD);
 
+		/*
 		//Строка с нулевым символом в конце. макс 128 символов включая 0
 		//StringCchCopy(icon_struct.szTip, ARRAYSIZE(icon_struct.szTip), TEXT("Test application"));
 		lstrcpyn(icon_struct.szTip, TEXT("Test application"), sizeof(icon_struct.szTip)/sizeof(icon_struct.szTip[0]));
@@ -537,6 +307,7 @@ private:
 	
 		lstrcpyn(icon_struct.szInfoTitle, TEXT("Title"), sizeof(icon_struct.szInfoTitle)/sizeof(icon_struct.szInfoTitle[0]));
 		lstrcpyn(icon_struct.szInfo, TEXT("text"), sizeof(icon_struct.szInfo)/sizeof(icon_struct.szInfo[0]));
+		*/
 
 		icon_struct.dwInfoFlags = NIIF_USER | NIIF_LARGE_ICON;
 		icon_struct.hBalloonIcon = (HICON) LoadImage(hInstance, MAKEINTRESOURCE(103), IMAGE_ICON, SM_CXSMICON, SM_CYSMICON, LR_DEFAULTCOLOR);
@@ -660,6 +431,7 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
 		//Сообщение от значка
 		case WM_SHELLNOTIFY:
 			if(LOWORD(lParam) == WM_CONTEXTMENU){
+				KillTimer(window, CLOSE_TIMER);
 				application->show_context_menu(GET_X_LPARAM(wParam), GET_Y_LPARAM(wParam));
 			}
 			break;
@@ -667,6 +439,20 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
 		//событие выбора пункта меню
 		case WM_COMMAND:
 			application->context_menu_click(LOWORD(wParam));
+			break;
+		
+		//события таймеров
+		case WM_TIMER:
+			switch(wParam){
+				case CLOSE_TIMER:
+					KillTimer(window, CLOSE_TIMER);
+					DestroyWindow(window);
+					break;
+ 
+				case BALLON_TYPES_INTERVAL_TIMER:
+					application->show_birthdays_ballons();
+					break; 
+			}
 			break;
 			
 		//выход из программы
