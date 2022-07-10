@@ -9,6 +9,13 @@ class BirthdaysClass{
 		BirthdaysClass();
 
 		/**
+		* @param str - строка с датой формата yyyy.mm.dd или dd.mm.yyyy, точка - любой нецифровой символ
+		* @param date - структура котора€ будет заполнена датой, если парсинг будет удачным
+		* @returns успешность парсинга
+		*/
+		static bool str_to_systemtime(std::string str, SYSTEMTIME& date);
+
+		/**
 		* ƒобавл€ет день рождени€, распредел€ет их по мес€цам
 		* 
 		*/
@@ -45,11 +52,4 @@ class BirthdaysClass{
 		* @returns позици€ первого неконечного символа или длину строки если смвол не найден
 		*/
 		DWORD get_not_end_char_pos(std::string& str, DWORD start_pos);
-
-		/**
-		* @param str - строка с датой формата yyyy.mm.dd или dd.mm.yyyy, точка - любой нецифровой символ
-		* @param date - структура котора€ будет заполнена датой, если парсинг будет удачным
-		* @returns успешность парсинга
-		*/
-		bool str_to_systemtime(std::string str, SYSTEMTIME& date);
 };

@@ -5,6 +5,64 @@ BirthdaysClass::BirthdaysClass(){
 }
 
 /**
+* @param str - строка с датой формата yyyy.mm.dd или dd.mm.yyyy, точка - любой нецифровой символ
+* @param date - структура которая будет заполнена датой, если парсинг будет удачным
+* @returns успешность парсинга
+*/
+bool BirthdaysClass::str_to_systemtime(std::string str, SYSTEMTIME& date){
+	if(str.size() != 10)
+		return false;
+
+	const char* str_p = str.c_str();
+	int year, month, day;
+	UINT8 year_shift, month_shift, day_shift;
+
+	if(isdigit(str[2])){
+		//yyyy.mm.dd
+		str[4] = '\0';
+		str[7] = '\0';
+		year_shift = 0;
+		month_shift = 5;
+		day_shift = 8;
+	}else{
+		//dd.mm.yyyy
+		str[2] = '\0';
+		str[5] = '\0';
+		year_shift = 6;
+		month_shift = 3;
+		day_shift = 0;
+	}
+
+	if(!StrToIntExA(str_p+year_shift, STIF_DEFAULT, &year)){
+		return false;
+	}
+	if(!StrToIntExA(str_p+month_shift, STIF_DEFAULT, &month)){
+		return false;
+	}
+	if(!StrToIntExA(str_p+day_shift, STIF_DEFAULT, &day)){
+		return false;
+	}
+		
+	date = {0};
+
+	date.wYear = year;
+	date.wMonth = month;
+	date.wDay = day;
+
+	FILETIME tmp = {0};
+	if(SystemTimeToFileTime(&date, &tmp) == 0){
+		//Ошибка конвертации
+		return false;
+	}
+	if(FileTimeToSystemTime(&tmp, &date) == 0){
+		//Ошибка конвертации
+		return false;
+	}
+
+	return true;
+}
+
+/**
 * Добавляет день рождения, распределяет их по месяцам
 * 
 */
@@ -150,51 +208,4 @@ DWORD BirthdaysClass::get_not_end_char_pos(std::string& str, DWORD start_pos){
 		}
 	}
 	return len;
-}
-
-/**
-* @param str - строка с датой формата yyyy.mm.dd или dd.mm.yyyy, точка - любой нецифровой символ
-* @param date - структура которая будет заполнена датой, если парсинг будет удачным
-* @returns успешность парсинга
-*/
-bool BirthdaysClass::str_to_systemtime(std::string str, SYSTEMTIME& date){
-	if(str.size() != 10)
-		return false;
-
-	const char* str_p = str.c_str();
-	int year, month, day;
-	UINT8 year_shift, month_shift, day_shift;
-
-	if(isdigit(str[2])){
-		//yyyy.mm.dd
-		str[4] = '\0';
-		str[7] = '\0';
-		year_shift = 0;
-		month_shift = 5;
-		day_shift = 8;
-	}else{
-		//dd.mm.yyyy
-		str[2] = '\0';
-		str[5] = '\0';
-		year_shift = 6;
-		month_shift = 3;
-		day_shift = 0;
-	}
-
-	if(!StrToIntExA(str_p+year_shift, STIF_DEFAULT, &year)){
-		return false;
-	}
-	if(!StrToIntExA(str_p+month_shift, STIF_DEFAULT, &month)){
-		return false;
-	}
-	if(!StrToIntExA(str_p+day_shift, STIF_DEFAULT, &day)){
-		return false;
-	}
-		
-	date = {0};
-
-	date.wYear = year;
-	date.wMonth = month;
-	date.wDay = day;
-	return true;
 }

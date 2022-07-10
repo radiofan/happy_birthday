@@ -87,8 +87,14 @@ String BirthdayList::get_greeting_with_day_age(UINT32 ind, const SYSTEMTIME& cur
 
 	String ret(labels[ind] + TEXT(" "));
 
-	ret += std::toString(dates[ind].wDay) + TEXT(" (") + week_day[dates[ind].wDayOfWeek] + TEXT(") ")
-		//+  std::toString(current_time.wYear - dates[ind].wYear) + TEXT(" ") + ;
+	//получим день недели день рождения в текущем году
+	FILETIME tmp = {0};
+	SYSTEMTIME date = dates[ind];
+	date.wYear = current_time.wYear;
+	SystemTimeToFileTime(&date, &tmp);
+	FileTimeToSystemTime(&tmp, &date);
+
+	ret += std::toString(dates[ind].wDay) + TEXT(" (") + week_day[date.wDayOfWeek] + TEXT(") ")
 		+  BirthdayList::num_decline(current_time.wYear - dates[ind].wYear, String(TEXT("год")), String(TEXT("года")), String(TEXT("лет")));
 	return ret;
 }

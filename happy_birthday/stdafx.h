@@ -8,6 +8,7 @@
 //#include <commctrl.h>
 #include <vector>
 #include <string>
+//#include <time.h>
 #include <tchar.h>
 #ifdef _UNICODE
 	typedef std::wstring String;
