@@ -45,7 +45,7 @@ int BirthdaysClass::parse_data_from_file(HANDLE input){
 	//DWORD string_start=0, string_end=0;
 	//bool is_quot = false;
 	char tmp;
-	std::string string_buffer = "", label;
+	std::string string_buffer, label;
 	SYSTEMTIME date = {0};
 	DWORD end_char_pos, noend_char_pos, date_finded=0;
 	bool find_date = false;
@@ -65,11 +65,11 @@ int BirthdaysClass::parse_data_from_file(HANDLE input){
 		if(find_date && (tmp == '\r' || tmp == '\n')){
 			//найден конец даты
 			find_date = false;
-			label = "";
 			if(this->str_to_systemtime(string_buffer.substr(0, end_char_pos), date)){
 				this->add_birthday(date, str_to_tstr(label));
 				date_finded++;
 			}
+			label = "";
 			string_buffer = string_buffer.substr(end_char_pos+1);
 
 		}else if(!find_date && tmp == DELIMITER_CHAR){
@@ -101,9 +101,8 @@ int BirthdaysClass::parse_data_from_file(HANDLE input){
 }
 
 BirthdayList BirthdaysClass::get_birthdays(UINT8 month, UINT8 day){
-	BirthdayList ret;
 	if(month > 12 || month == 0)
-		return ret;
+		return BirthdayList();
 	return birthday_list[month-1].get_birthdays(day);
 }
 
@@ -197,4 +196,5 @@ bool BirthdaysClass::str_to_systemtime(std::string str, SYSTEMTIME& date){
 	date.wYear = year;
 	date.wMonth = month;
 	date.wDay = day;
+	return true;
 }

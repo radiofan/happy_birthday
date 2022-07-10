@@ -1,5 +1,19 @@
 #include "stdafx.h"
 
+std::wstring string_to_wstring(const std::string& str){
+	UINT32 wstr_len = MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, NULL, 0);
+	if(!wstr_len)
+		return std::wstring();
+	HANDLE h_process_heap = GetProcessHeap();
+	LPWSTR wstr = (LPWSTR)HeapAlloc(h_process_heap, 0, wstr_len * sizeof(WCHAR));
+	MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, wstr, wstr_len);
+	std::wstring ret(wstr);
+	HeapFree(h_process_heap, 0, wstr);
+	return ret;
+}
+
+
+
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
 
 
@@ -116,6 +130,7 @@ public:
 		}
 
 		if(birthdays_list.get_count_birthdays(current_time.wMonth)){
+			birthday_type_print = 1;
 			SetTimer(window, BALLON_TYPES_INTERVAL_TIMER, BALLON_TYPES_INTERVAL_SEC*1000, NULL);
 		}else{
 			if(close_after_sec >= 0){
@@ -171,10 +186,29 @@ public:
 	}
 
 	void show_birthdays_ballons(){
-		//сегодн€шние день рождени€
+		//день рождени€ в этом мес€це
 		if(birthday_type_print == 1){
-			birthdays_list.get_birthdays(current_time.wMonth, current_time.wDay);
+			BirthdayList b_list = birthdays_list.get_birthdays(current_time.wMonth, 0);
+			lstrcpyn(icon_struct.szInfoTitle, TEXT("¬ этом мес€це день рождени€ празднуют:"), szInfoTitle_LENGTH);
+			String out;
+			String birthday_greeting;
+			UINT32 len = b_list.size();
+			for(UINT32 i=0; i<len; i++){
+				birthday_greeting = b_list.get_greeting_with_day_age(i, current_time);
+				if(birthday_greeting.size() >= szInfo_LENGTH-1){
+					continue;
+				}
+				if(birthday_greeting.size() + out.size() >= szInfo_LENGTH-2){
+					break;
+				}
+				if(out.size()){
+					out += TEXT("\n");
+				}
+				out += birthday_greeting;
+			}
 
+			lstrcpyn(icon_struct.szInfo, out.c_str(), szInfo_LENGTH);
+			Shell_NotifyIcon(NIM_MODIFY, &icon_struct);
 		}
 
 		KillTimer(window, BALLON_TYPES_INTERVAL_TIMER);
@@ -302,11 +336,11 @@ private:
 		/*
 		//—трока с нулевым символом в конце. макс 128 символов включа€ 0
 		//StringCchCopy(icon_struct.szTip, ARRAYSIZE(icon_struct.szTip), TEXT("Test application"));
-		lstrcpyn(icon_struct.szTip, TEXT("Test application"), sizeof(icon_struct.szTip)/sizeof(icon_struct.szTip[0]));
+		lstrcpyn(icon_struct.szTip, TEXT("Test application"), szTip);
 	
 	
-		lstrcpyn(icon_struct.szInfoTitle, TEXT("Title"), sizeof(icon_struct.szInfoTitle)/sizeof(icon_struct.szInfoTitle[0]));
-		lstrcpyn(icon_struct.szInfo, TEXT("text"), sizeof(icon_struct.szInfo)/sizeof(icon_struct.szInfo[0]));
+		lstrcpyn(icon_struct.szInfoTitle, TEXT("Title"), szInfoTitle_LENGTH);
+		lstrcpyn(icon_struct.szInfo, TEXT("text"), szInfo_LENGTH);
 		*/
 
 		icon_struct.dwInfoFlags = NIIF_USER | NIIF_LARGE_ICON;
